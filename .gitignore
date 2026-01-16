@@ -3,3 +3,8 @@
 
 # Ignore Gradle build output directory
 build
+
+# My
+kls.database.db
+
+.editorconfig

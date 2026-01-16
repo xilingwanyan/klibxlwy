@@ -12,7 +12,11 @@ plugins {
 
     // Apply the java-library plugin for API and implementation separation.
     `java-library`
+
+    `maven-publish`
 }
+
+group = "com.github.xilingwanyan"
 
 repositories {
     // Use Maven Central for resolving dependencies.
@@ -32,7 +36,7 @@ testing {
         // Configure the built-in test suite
         val test by getting(JvmTestSuite::class) {
             // Use Kotlin Test test framework
-            useKotlinTest("2.1.20")
+            useKotlinTest("2.3.0")
         }
     }
 }
@@ -41,5 +45,16 @@ testing {
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+            groupId = "com.github.xilingwanyan"
+            artifactId = "klibxlwy"
+            version = "1.0.0"
+        }
     }
 }
