@@ -5,6 +5,6 @@
 build
 
 # My
-kls.database.db
+kls_database.db
 
 .editorconfig

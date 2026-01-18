@@ -16,7 +16,7 @@ plugins {
     `maven-publish`
 }
 
-group = "com.github.xilingwanyan"
+group = "org.xilingwanyan"
 
 repositories {
     // Use Maven Central for resolving dependencies.
@@ -52,7 +52,7 @@ publishing {
     publications {
         create<MavenPublication>("maven") {
             from(components["java"])
-            groupId = "com.github.xilingwanyan"
+            groupId = "org.xilingwanyan"
             artifactId = "klibxlwy"
             version = "1.0.0"
         }
