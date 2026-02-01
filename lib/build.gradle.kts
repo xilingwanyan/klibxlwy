@@ -29,6 +29,8 @@ dependencies {
 
     // This dependency is used internally, and not exposed to consumers on their own compile classpath.
     implementation(libs.guava)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("com.googlecode.lanterna:lanterna:3.1.3")
 }
 
 testing {
@@ -36,7 +38,7 @@ testing {
         // Configure the built-in test suite
         val test by getting(JvmTestSuite::class) {
             // Use Kotlin Test test framework
-            useKotlinTest("2.3.0")
+            useKotlinTest("2.2.21")
         }
     }
 }
