@@ -23,6 +23,8 @@ repositories {
     mavenCentral()
 }
 
+val jlineVersion = "3.30.6"
+
 dependencies {
     // This dependency is exported to consumers, that is to say found on their compile classpath.
     api(libs.commons.math3)
@@ -30,7 +32,7 @@ dependencies {
     // This dependency is used internally, and not exposed to consumers on their own compile classpath.
     implementation(libs.guava)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-    implementation("com.googlecode.lanterna:lanterna:3.1.3")
+    implementation("org.jline:jline-terminal:$jlineVersion")
 }
 
 testing {

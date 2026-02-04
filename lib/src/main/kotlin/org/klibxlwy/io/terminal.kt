@@ -78,7 +78,6 @@ object Cursor {
 }
 
 object Term {
-    @Volatile
     private var terminalTrue: Terminal? = null
 
     @Suppress("NOTHING_TO_INLINE")
@@ -104,18 +103,18 @@ object Term {
     // 缓存 获取 异步的terminal对象
 
     @Suppress("NOTHING_TO_INLINE")
-    private inline fun initSize(): Size =
+    private inline fun initSize(): PlaneSize =
         fetchSize().also {
             sizeTrue = it
             listenWinch()
         }
 
-    private var sizeTrue: Size? = null
+    private var sizeTrue: PlaneSize? = null
 
     val size
-        get(): Size =
+        get(): PlaneSize =
             sizeTrue ?: initSize()
-    suspend fun getSizeAsync(): Size {
+    suspend fun getSizeAsync(): PlaneSize {
         val mutex = Mutex()
         return autoNullWithAsync(sizeTrue, mutex) {
             initSize()
@@ -131,13 +130,13 @@ object Term {
             updateStart(it)
         }
     }
-    fun fetchSize(): Size =
-        terminal.getSize()
+    fun fetchSize(): PlaneSize =
+        terminal.getSizeRe()
 
     private var startTrue: Position? = null
     val start
         get(): Position =
-            startTrue ?: Position(1, size.getRows()).also {
+            startTrue ?: Position(1, size.y).also {
                 startTrue = it
             }
     suspend fun getStartAsync() {
@@ -153,14 +152,13 @@ object Term {
     fun updateStart() {
         startTrue = fetchStart()
     }
-    fun updateStart(size: Size) {
+    fun updateStart(size: PlaneSize) {
         startTrue = fetchStart(size)
     }
     fun fetchStart(): Position =
-        Position(1, size.getRows())
-    fun fetchStart(size: Size): Position =
-        Position(1, size.getRows())
-
+        Position(1, size.y)
+    fun fetchStart(size: PlaneSize): Position =
+        Position(1, size.y)
 
     fun listenWinch() {
         Signal.handle(Signal("WINCH")) {
@@ -275,6 +273,7 @@ fun Terminal.getCursorPositionRe(retry: Int = 0): Position {
     val writer = this.writer()
     val strBuilder = StringBuilder()
     Term.withRawMode {
+        writer.print("${CTRL}?25l")
         writer.print("${CTRL}6n")
         writer.flush()
 
@@ -285,6 +284,8 @@ fun Terminal.getCursorPositionRe(retry: Int = 0): Position {
             }
             strBuilder.append(i)
         }
+        writer.print("${CTRL}?25h")
+        writer.flush()
     }
     val str = strBuilder.toString()
 
@@ -311,20 +312,100 @@ fun Terminal.getCursorPositionRe(retry: Int = 0): Position {
     }
 }
 
-fun Terminal.getSizeRe(retry: Int = 0): Position {
-    // TODO: ("build this")
-    TODO("build this")
+fun Terminal.getSizeRe(retry: Int = 0): PlaneSize {
+    if (retry >= 5) {
+        throw KotlinNullPointerException("can' getSize")
+    }
+    var retryPrivate = retry
+    val reader = this.reader()
+    val writer = this.writer()
+    val strBuilder = StringBuilder()
+    Term.withRawMode {
+        writer.print("${CTRL}s")
+        writer.print("${CTRL}?25l")
+        writer.print("${CTRL}9999;9999H")
+        writer.print("${CTRL}6n")
+        writer.flush()
+
+        while (true) {
+            val i = reader.read().toChar()
+            if (i == 'R') {
+                break
+            }
+            strBuilder.append(i)
+        }
+        writer.print("${CTRL}u")
+        writer.print("${CTRL}?25h")
+        writer.flush()
+    }
+    val str = strBuilder.toString()
+
+    val splitIndex1: Int  = str.indexOf(CTRL)
+    val splitIndex2: Int  = str.indexOf(';')
+
+    if (splitIndex1 == -1 ||
+        splitIndex2 == -1
+    ) {
+        retryPrivate++
+        return this.getSizeRe(retryPrivate)
+    }
+
+    val p1: String = str.substring(splitIndex1 + 2, splitIndex2)
+    val p2: String = str.substring(splitIndex2 + 1)
+
+    val y = p1.toIntOrNull()
+    val x = p2.toIntOrNull()
+    return if (x == null || y == null) {
+        retryPrivate++
+        this.getSizeRe(retryPrivate)
+    } else {
+        PlaneSize(x, y)
+    }
 }
 
-// TODO: rebuild class
-data class Position(val x: Int, val y: Int) {
-    override fun toString() = "[${x};${y}]"
+interface BasePlane {
+    val x: Int
+    val y: Int
+}
+interface BaseMutablePlane : BasePlane {
+    override var x: Int
+    override var y: Int
+}
+
+interface BasePlanePosition : BasePlane {
     fun goto() = Cursor.goto(x, y)
 }
 
-data class MutablePosition(var x: Int, var y: Int) {
-    override fun toString() = "[${x};${y}]"
-    fun goto() = Cursor.goto(x, y)
+open class Plane(
+    override val x: Int,
+    override val y: Int
+) : BasePlane {
+    override fun toString() = "[$x;$y]"
+    open fun copy(x: Int = this.x, y: Int = this.y): Plane = Plane(x, y)
+}
+open class MutablePlane(
+    override var x: Int,
+    override var y: Int
+) : BaseMutablePlane {
+    override fun toString() = "[$x;$y]"
+    open fun copy(x: Int = this.x, y: Int = this.y): MutablePlane = MutablePlane(x, y)
+}
+
+open class Position(x: Int, y: Int) : Plane(x, y), BasePlanePosition {
+    override fun copy(x: Int, y: Int): Position = Position(x, y)
+}
+
+class MutablePosition(x: Int, y: Int) : MutablePlane(x, y), BasePlanePosition {
+    override fun copy(x: Int, y: Int): MutablePosition = MutablePosition(x, y)
+}
+
+open class PlaneSize(x: Int, y: Int) : Plane(x, y) {
+    override fun toString() = "{${x}x${y}}"
+    override fun copy(x: Int, y: Int): PlaneSize = PlaneSize(x, y)
+}
+class MutablePlaneSize(x: Int, y: Int) : MutablePlane(x, y) {
+    override fun toString() = "{${x}x${y}}"
+    override fun copy(x: Int, y: Int): MutablePlaneSize = MutablePlaneSize(x, y)
 }
 
 suspend inline fun <T : Any> autoNullWithAsync(
@@ -352,5 +433,5 @@ inline fun runTimeTest(
     val start = System.nanoTime()
     block()
     return (System.nanoTime() - start) / 1_000_000
-
 }
+
